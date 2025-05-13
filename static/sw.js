@@ -2,7 +2,7 @@
 self.addEventListener('install', (event) => {
   console.log('[ServiceWorker] Install');
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(v4)
       .then((cache) => {
         console.log('[ServiceWorker] Caching app shell individually');
         const promises = urlsToCache.map((url) => {
