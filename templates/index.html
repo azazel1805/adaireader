@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADAI Reader</title>
+
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <!-- Theme color for browser UI -->
+    <meta name="theme-color" content="#ffeb3b"> <!-- Match your manifest.json theme_color -->
+    <!-- Apple specific meta tags for PWA -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"> <!-- or "default" -->
+    <meta name="apple-mobile-web-app-title" content="GutenReader"> <!-- Match your manifest.json short_name -->
+    <!-- Favicon links (ensure these icons exist in static/icons/) -->
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='icons/icon-192x192.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192x192.png') }}">
+    <!-- You can add more icon sizes if needed, e.g., 512x512 for a larger homescreen icon -->
+    <!-- <link rel="icon" type="image/png" sizes="512x512" href="{{ url_for('static', filename='icons/icon-512x512.png') }}"> -->
+
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700&family=Merriweather:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <main class="main-content-area">
+            <header class="app-header">
+                <h1>Reader</h1>
+            </header>
+            
+            <section class="controls-section">
+                <fieldset>
+                    <legend>Load Book</legend>
+                    <div class="book-selection">
+                        <label for="book-select">Choose a classic:</label>
+                        <select id="book-select">
+                            <option value="">-- Select a Book --</option>
+                            <!-- Options will be populated by JavaScript -->
+                        </select>
+                        <span>OR</span>
+                        <label for="book-id-input">Gutenberg ID:</label>
+                        <input type="text" id="book-id-input" placeholder="e.g., 11">
+                    </div>
+                    <button id="load-book-btn" class="btn btn-primary">Load Book</button>
+                </fieldset>
+            </section>
+
+            <section class="reading-tools-section">
+                <fieldset class="tts-controls">
+                    <legend>Text-to-Speech</legend>
+                    <div class="button-group">
+                        <button id="read-book-btn" title="Read the entire book from the beginning" disabled>📖 Read All</button>
+                        <button id="pause-reading-btn" title="Pause reading" disabled>⏸️ Pause</button>
+                        <button id="resume-reading-btn" title="Resume reading" disabled>▶️ Resume</button>
+                        <button id="stop-reading-btn" title="Stop reading" disabled>⏹️ Stop</button>
+                    </div>
+                    <p id="tts-status">Load a book to enable reading controls.</p>
+                </fieldset>
+    
+                <fieldset class="interaction-controls">
+                    <legend>Selection Tools</legend>
+                    <div class="button-group">
+                        <button id="add-to-my-words-btn" title="Add selected text to My Words" disabled>➕ Add to My Words</button>
+                        <button id="read-from-selection-btn" title="Start reading from the selected text" disabled>💬 Read from Selection</button>
+                    </div>
+                </fieldset>
+            </section>
+            
+            <section id="book-display-area">
+                <div id="book-content" tabindex="0">
+                    <p>Select or enter a Gutenberg Book ID and click "Load Book".</p>
+                </div>
+            </section>
+
+            <div id="vocab-popup" class="tooltip">
+                <strong id="vocab-word"></strong>: <span id="vocab-definition"></span>
+            </div>
+            
+            <div id="loading-indicator" style="display:none;">Loading...</div>
+            <div id="error-message" style="display:none;"></div> <!-- Ensure this is visible when errors occur -->
+        </main>
+
+        <aside class="sidebar">
+            <h2>My Words</h2>
+            <div id="my-words-list-container">
+                <ul id="my-words-list">
+                    <!-- Saved words will appear here -->
+                </ul>
+            </div>
+        </aside>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+      // Register Service Worker
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register("{{ url_for('static', filename='sw.js') }}")
+            .then(registration => {
+              console.log('PWA ServiceWorker registration successful with scope: ', registration.scope);
+            })
+            .catch(err => {
+              console.log('PWA ServiceWorker registration failed: ', err);
+            });
+        });
+      } else {
+        console.log('PWA ServiceWorker not supported in this browser.');
+      }
+    </script>
+</body>
+</html>

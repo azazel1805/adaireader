@@ -1,0 +1,23 @@
+{
+  "name": "I Reader",
+  "short_name": "IReader",
+  "description": "Read Project Gutenberg books with TTS and vocabulary tools.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffde7",
+  "theme_color": "#ffeb3b",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
