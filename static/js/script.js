@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM fully loaded and parsed. Version: No direct vocab popup, No voice. Utterance fix.");
+    console.log("DOM fully loaded and parsed. Version: Enhanced TTS Debugging & Voice Selection.");
 
     // Element getters
     const bookSelect = document.getElementById('book-select');
@@ -23,35 +23,76 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingIndicator = document.getElementById('loading-indicator');
     const errorMessageDiv = document.getElementById('error-message');
 
-    // Check for all essential elements
-    const essentialElements = { bookSelect, bookIdInput, loadBookBtn, bookContentDiv, addToMyWordsBtn, readFromSelectionBtn, myWordsListUl, readBookBtn, pauseReadingBtn, resumeReadingBtn, stopReadingBtn, ttsStatusP, vocabPopup, vocabWordEl, vocabDefinitionEl, loadingIndicator, errorMessageDiv };
-    for (const elName in essentialElements) {
-        if (!essentialElements[elName]) {
-            console.error(`CRITICAL: HTML element '${elName}' is missing!`);
-            alert(`Critical error: Page element ${elName} missing. Check console.`);
-            return;
-        }
-    }
-    console.log("All essential HTML elements found.");
+    // Check for all essential elements (good practice)
+    // ... (keep your essentialElements check here)
 
     let currentBookText = "";
     let isReading = false; 
     let isPaused = false;
     let speechSynthesis = window.speechSynthesis;
-    let currentUtterance = null; // Will be an instance of SpeechSynthesisUtterance when speaking
-    let myWords = []; // For the personal word list
+    let currentUtterance = null; 
+    let myWords = []; 
+    let availableVoices = []; // To store loaded voices
 
     // Chrome TTS Workaround: "Warm up" the engine
     let ttsEnginePrimed = false;
     function primeTTSEngine() {
-        if (!ttsEnginePrimed && speechSynthesis) {
-            console.log("Priming TTS Engine for Chrome...");
-            const primer = new SpeechSynthesisUtterance(''); 
-            primer.volume = 0; 
-            speechSynthesis.speak(primer); // This should be fine as 'primer' is a valid Utterance
-            ttsEnginePrimed = true;
+        if (!ttsEnginePrimed && speechSynthesis && availableVoices.length > 0) { 
+            console.log("Priming TTS Engine for Chrome with a short, silent utterance...");
+            const primer = new SpeechSynthesisUtterance('Hello'); 
+            primer.volume = 0.01; 
+            primer.rate = 5; 
+            
+            const englishVoice = availableVoices.find(voice => voice.lang === 'en-US' && voice.localService === true) ||
+                                 availableVoices.find(voice => voice.lang === 'en-US');
+            if (englishVoice) {
+                primer.voice = englishVoice;
+                console.log("Primer using voice:", englishVoice.name);
+            } else {
+                console.warn("Primer: No en-US voice found for priming.");
+            }
+
+            primer.onend = () => {
+                console.log("TTS Primer utterance ended successfully.");
+                ttsEnginePrimed = true;
+            };
+            primer.onerror = (event) => {
+                console.error("TTS Primer utterance error:", event.error, event);
+                // Consider not setting ttsEnginePrimed to true if primer fails critically
+            };
+            try {
+                speechSynthesis.speak(primer);
+            } catch (e) {
+                console.error("Error speaking primer utterance:", e);
+            }
+        } else if (!ttsEnginePrimed && speechSynthesis) {
+            console.log("PrimeTTSEngine: Voices not yet loaded or SpeechSynthesis not ready. Will try again later or on first speak.");
+            loadAndLogVoices(); // Attempt to load voices if not already available
         }
     }
+    
+    function loadAndLogVoices() {
+        if (!speechSynthesis) return;
+        availableVoices = speechSynthesis.getVoices();
+        console.log("Available TTS voices (sync call):", availableVoices);
+
+        if (availableVoices.length === 0 && speechSynthesis.onvoiceschanged === null) {
+            console.log("No voices loaded yet (sync), setting up onvoiceschanged event...");
+            speechSynthesis.onvoiceschanged = () => {
+                availableVoices = speechSynthesis.getVoices();
+                console.log("TTS voices loaded (onvoiceschanged event):", availableVoices);
+                if (availableVoices.length === 0) {
+                    console.warn("Still no TTS voices available after onvoiceschanged!");
+                }
+                // Once voices are loaded, we don't need this listener anymore for this session
+                // However, some browsers might fire it multiple times.
+                // For simplicity, we'll let it be.
+            };
+        } else if (availableVoices.length === 0) {
+             console.warn("No TTS voices available initially. The onvoiceschanged event might be necessary or already set.");
+        }
+    }
+
 
     if (!speechSynthesis) {
         console.warn("SpeechSynthesis API is not available in this browser.");
@@ -60,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.log("SpeechSynthesis API is available.");
         speechSynthesis.cancel(); 
+        loadAndLogVoices(); // Attempt to load voices on initialization
         updateTTSButtonStates();
     }
 
@@ -69,7 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (storedWords) {
             try {
                 myWords = JSON.parse(storedWords);
-                if (!Array.isArray(myWords)) myWords = []; // Ensure it's an array
+                if (!Array.isArray(myWords)) myWords = []; 
             } catch (e) {
                 console.error("Error parsing 'myGutenbergWords' from localStorage:", e);
                 myWords = [];
@@ -194,7 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     async function loadBook() { 
-        primeTTSEngine(); 
+        primeTTSEngine(); // Attempt to prime TTS engine on book load
         const bookId = bookIdInput.value.trim();
         if (!bookId) { 
             displayError("Please select or enter a Book ID.");
@@ -309,6 +351,8 @@ document.addEventListener('DOMContentLoaded', () => {
         primeTTSEngine(); 
         if (currentBookText) {
             console.log("Read Book button clicked.");
+            // TEST LINE:
+            // speakText("Hello, this is a simple test from Google Chrome."); 
             speakText(currentBookText);
         }
     });
@@ -388,6 +432,23 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUtterance = new SpeechSynthesisUtterance(textToSpeak); 
             currentUtterance.lang = 'en-US'; 
 
+            // Attempt to assign a specific voice
+            if (availableVoices.length > 0) {
+                let englishVoice = availableVoices.find(voice => voice.lang === 'en-US' && voice.localService === true); // Prefer local
+                if (!englishVoice) {
+                    englishVoice = availableVoices.find(voice => voice.lang === 'en-US'); // Fallback to any English
+                }
+                if (englishVoice) {
+                    currentUtterance.voice = englishVoice;
+                    console.log("speakText: Using voice:", englishVoice.name, englishVoice.lang);
+                } else {
+                    console.warn("speakText: No 'en-US' voice found. Using default.");
+                }
+            } else {
+                console.warn("speakText: No voices available when creating utterance. Using default. Attempting to reload voices.");
+                loadAndLogVoices(); // Try to load voices again if they weren't ready
+            }
+
             currentUtterance.onstart = () => {
                 console.log("TTS onstart: Utterance has started speaking.");
                 isReading = true;
@@ -399,25 +460,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log("TTS onend: Utterance has finished speaking.");
                 isReading = false;
                 isPaused = false;
-                // currentUtterance = null; // Not strictly necessary as it's reassigned
+                // currentUtterance = null; 
                 updateTTSButtonStates();
             };
 
             currentUtterance.onerror = (event) => {
-                console.error('TTS onerror:', event.error, event); 
+                console.error('TTS onerror - Error type:', event.error, 'Full event object:', event); 
                 isReading = false;
                 isPaused = false;
-                ttsStatusP.textContent = `Speech error: ${event.error}. Try again or check console.`;
+                ttsStatusP.textContent = `Speech error: ${event.error}. See console for details.`;
                 // currentUtterance = null;
                 updateTTSButtonStates();
             };
             
             console.log("speakText: Attempting to speak with utterance object:", currentUtterance);
             if (currentUtterance instanceof SpeechSynthesisUtterance) {
-                speechSynthesis.speak(currentUtterance); 
-                isReading = true; 
-                isPaused = false;
-                updateTTSButtonStates(); 
+                try {
+                    speechSynthesis.speak(currentUtterance); 
+                    isReading = true; 
+                    isPaused = false;
+                    updateTTSButtonStates(); 
+                } catch (e) {
+                    console.error("Error directly from speechSynthesis.speak():", e);
+                    ttsStatusP.textContent = `Speech system error: ${e.message}.`;
+                    isReading = false;
+                    isPaused = false;
+                    updateTTSButtonStates();
+                }
             } else {
                 console.error("speakText: currentUtterance is NOT a SpeechSynthesisUtterance object just before speak()!", currentUtterance);
                 ttsStatusP.textContent = "Internal error: Could not prepare speech.";
@@ -425,7 +494,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 isPaused = false;
                 updateTTSButtonStates();
             }
-        }, 100); 
+        }, 100); // 100ms delay
     }
 
     function stopReading() {
@@ -447,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     function resumeReading() {
-        if (speechSynthesis && isPaused) { 
+        if (speechSynthesis && isPaused) { // Check our internal isPaused flag
             console.log("resumeReading called.");
             speechSynthesis.resume();
             isPaused = false; 
@@ -461,5 +530,5 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTTSButtonStates();
     readFromSelectionBtn.disabled = true; 
     addToMyWordsBtn.disabled = true;
-    console.log("Initial setup complete.");
+    console.log("Initial setup complete. TTS debugging enhanced.");
 });
