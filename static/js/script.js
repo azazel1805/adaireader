@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-    console.log("DOM fully loaded and parsed. Version: No direct vocab popup, No voice.");
+    console.log("DOM fully loaded and parsed. Version: No direct vocab popup, No voice. Utterance fix.");
 
     // Element getters
     const bookSelect = document.getElementById('book-select');
@@ -38,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let isReading = false; 
     let isPaused = false;
     let speechSynthesis = window.speechSynthesis;
-    let currentUtterance = null;
+    let currentUtterance = null; // Will be an instance of SpeechSynthesisUtterance when speaking
     let myWords = []; // For the personal word list
 
     // Chrome TTS Workaround: "Warm up" the engine
@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log("Priming TTS Engine for Chrome...");
             const primer = new SpeechSynthesisUtterance(''); 
             primer.volume = 0; 
-            speechSynthesis.speak(primer);
+            speechSynthesis.speak(primer); // This should be fine as 'primer' is a valid Utterance
             ttsEnginePrimed = true;
         }
     }
@@ -60,11 +60,6 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.log("SpeechSynthesis API is available.");
         speechSynthesis.cancel(); 
-setTimeout(() => {
-    // ...
-    speechSynthesis.speak(currentUtterance);
-    // ...
-}, 100); // You can experiment with this value: 50, 100, 150, 200 
         updateTTSButtonStates();
     }
 
@@ -72,7 +67,13 @@ setTimeout(() => {
     function loadMyWords() { 
         const storedWords = localStorage.getItem('myGutenbergWords');
         if (storedWords) {
-            myWords = JSON.parse(storedWords);
+            try {
+                myWords = JSON.parse(storedWords);
+                if (!Array.isArray(myWords)) myWords = []; // Ensure it's an array
+            } catch (e) {
+                console.error("Error parsing 'myGutenbergWords' from localStorage:", e);
+                myWords = [];
+            }
         }
         renderMyWordsList();
     }
@@ -81,7 +82,7 @@ setTimeout(() => {
     }
     function addToMyWords(text) { 
         const cleanedText = text.trim();
-        if (cleanedText && !myWords.includes(cleanedText) && cleanedText.length < 50) { // Max length for word/phrase
+        if (cleanedText && !myWords.includes(cleanedText) && cleanedText.length < 50) {
             myWords.push(cleanedText);
             myWords.sort();
             saveMyWords();
@@ -115,8 +116,8 @@ setTimeout(() => {
         }
     });
 
-    // --- Predefined Book List (CORRECTED) ---
-    const preselectedBooks = [
+    // --- Predefined Book List ---
+    const preselectedBooks = [ 
         { title: "Alice's Adventures in Wonderland by Lewis Carroll", id: "11" },
         { title: "Pride and Prejudice by Jane Austen", id: "1342" },
         { title: "The Adventures of Sherlock Holmes by Arthur Conan Doyle", id: "1661" },
@@ -125,11 +126,11 @@ setTimeout(() => {
         { title: "Frankenstein; Or, The Modern Prometheus by Mary Shelley", id: "84" },
         { title: "Dracula by Bram Stoker", id: "345" },
         { title: "The Picture of Dorian Gray by Oscar Wilde", id: "174" },
-        { title: "The Great Gatsby by F. Scott Fitzgerald", id: "64317" }, // Note: Check copyright in your region for this one
+        { title: "The Great Gatsby by F. Scott Fitzgerald", id: "64317" },
         { title: "Jane Eyre by Charlotte Brontë", id: "1260" },
         { title: "War and Peace by Leo Tolstoy", id: "2600" },
-        { title: "The Iliad by Homer", id: "6130" }, // (Translated by Samuel Butler)
-        { title: "The Odyssey by Homer", id: "1727" }, // (Translated by Samuel Butler)
+        { title: "The Iliad by Homer", id: "6130" },
+        { title: "The Odyssey by Homer", id: "1727" },
         { title: "Adventures of Huckleberry Finn by Mark Twain", id: "76" },
         { title: "The Adventures of Tom Sawyer by Mark Twain", id: "74" },
         { title: "Treasure Island by Robert Louis Stevenson", id: "120" },
@@ -137,20 +138,20 @@ setTimeout(() => {
         { title: "Anne of Green Gables by L. M. Montgomery", id: "45" },
         { title: "Little Women by Louisa May Alcott", id: "514" },
         { title: "The Importance of Being Earnest by Oscar Wilde", id: "844" },
-        { title: "Metamorphosis by Franz Kafka", id: "5200" }, // (Translated by David Wyllie)
+        { title: "Metamorphosis by Franz Kafka", id: "5200" },
         { title: "The Yellow Wallpaper by Charlotte Perkins Gilman", id: "1952" },
         { title: "A Christmas Carol by Charles Dickens", id: "46" },
         { title: "Great Expectations by Charles Dickens", id: "1400" },
-        { title: "The Scarlet Letter by Nathaniel Hawthorne", id: "25344" }, // (Often pg32 is an older version)
+        { title: "The Scarlet Letter by Nathaniel Hawthorne", id: "25344" },
         { title: "Wuthering Heights by Emily Brontë", id: "768" },
-        { title: "Don Quixote by Miguel de Cervantes Saavedra", id: "996" }, // (Translated by John Ormsby)
+        { title: "Don Quixote by Miguel de Cervantes Saavedra", id: "996" },
         { title: "The Count of Monte Cristo by Alexandre Dumas", id: "1184" },
         { title: "Grimms' Fairy Tales by Jacob Grimm and Wilhelm Grimm", id: "2591" },
         { title: "A Modest Proposal by Jonathan Swift", id: "1080" },
-        { title: "The Republic by Plato", id: "1497" }, // (Translated by Benjamin Jowett)
+        { title: "The Republic by Plato", id: "1497" },
         { title: "The Prince by Niccolò Machiavelli", id: "1232" },
-        { title: "Ulysses by James Joyce", id: "4300" }, // Note: Check copyright in your region
-        { title: "Siddhartha by Hermann Hesse", id: "2500" }, // (Translated by Gunther Olesch, Anke Dreher, Amy Coulter, Stefan Langer and Semyon Chaichenets)
+        { title: "Ulysses by James Joyce", id: "4300" },
+        { title: "Siddhartha by Hermann Hesse", id: "2500" },
         { title: "The Time Machine by H. G. Wells", id: "35" },
         { title: "The War of the Worlds by H. G. Wells", id: "36" },
         { title: "Heart of Darkness by Joseph Conrad", id: "219" },
@@ -202,8 +203,7 @@ setTimeout(() => {
         showLoading(true);
         bookContentDiv.innerHTML = '<p>Loading book...</p>';
         currentBookText = "";
-        stopReading(); // Stop any current reading
-        // Cancel any pending speech - crucial for clean state
+        stopReading(); 
         if (speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) {
             speechSynthesis.cancel();
         }
@@ -243,14 +243,14 @@ setTimeout(() => {
             readFromSelectionBtn.disabled = true;
             addToMyWordsBtn.disabled = true;
         }
-        vocabPopup.style.display = 'none'; // Ensure popup is hidden on book selection
+        vocabPopup.style.display = 'none'; 
     }
 
     // --- Definition Fetching (Only called from myWordsList clicks) ---
     async function fetchAndShowDefinition(textToDefine, targetElement) { 
         console.log("Fetching definition for (from My Words list):", textToDefine);
         showLoading(true);
-        vocabPopup.style.display = 'none'; // Hide previous before fetching new
+        vocabPopup.style.display = 'none'; 
         try {
             const response = await fetch('/get_definition', {
                 method: 'POST',
@@ -275,7 +275,6 @@ setTimeout(() => {
                 let popupX = window.pageXOffset + rect.right + 10; 
                 let popupY = window.pageYOffset + rect.top;
 
-                // Adjust if it goes off screen
                 if (popupX + vocabPopup.offsetWidth > window.innerWidth - 5) {
                     popupX = window.pageXOffset + rect.left - vocabPopup.offsetWidth - 10; 
                 }
@@ -328,7 +327,7 @@ setTimeout(() => {
                     preSelectionRange.setEnd(range.startContainer, range.startOffset);
                     startIndex = preSelectionRange.toString().length;
                 } else {
-                    startIndex = currentBookText.indexOf(selectedText); // Fallback
+                    startIndex = currentBookText.indexOf(selectedText); 
                     if (startIndex === -1) { 
                         displayError("Could not determine starting point of selection.");
                         return; 
@@ -353,8 +352,8 @@ setTimeout(() => {
 
         readBookBtn.disabled = !bookLoaded || (isReading && !isPaused); 
         pauseReadingBtn.disabled = !isReading || isPaused;
-        resumeReadingBtn.disabled = !isReading || !isPaused; // Corrected: only enable if reading AND paused
-        stopReadingBtn.disabled = !isReading && !isPaused; // Enable if reading OR paused (i.e. TTS system is active)
+        resumeReadingBtn.disabled = !isReading || !isPaused; 
+        stopReadingBtn.disabled = !isReading && !isPaused; 
         
         if (isReading && !isPaused) ttsStatusP.textContent = "Reading...";
         else if (isPaused) ttsStatusP.textContent = "Paused.";
@@ -364,58 +363,75 @@ setTimeout(() => {
 
     function speakText(textToSpeak) {
         console.log("speakText called. Text (first 100 chars): '", textToSpeak ? textToSpeak.substring(0,100) : "NULL", "'");
+        
         if (!speechSynthesis) { 
-            ttsStatusP.textContent = "TTS not available."; return; 
+            ttsStatusP.textContent = "TTS not available."; 
+            console.error("speakText: SpeechSynthesis API not available!");
+            return; 
         }
         if (!textToSpeak || textToSpeak.trim() === "") { 
-            ttsStatusP.textContent = "Nothing to read."; return; 
+            ttsStatusP.textContent = "Nothing to read."; 
+            console.warn("speakText: textToSpeak is empty or null.");
+            return; 
         }
         
+        console.log("speakText: Cancelling previous speech (if any).");
         speechSynthesis.cancel(); 
 
-        setTimeout(() => { // Delay after cancel for Chrome robustness
+        setTimeout(() => {
             if (speechSynthesis.pending || speechSynthesis.speaking) {
-                 console.warn("TTS still active after cancel, trying again.");
+                 console.warn("TTS still active after initial cancel, trying cancel again before new speak.");
                  speechSynthesis.cancel(); 
             }
 
-            currentUtterance = new SpeechSynthesisUtterance(textToSpeak);
-            currentUtterance.lang = 'en-US';
-            
+            console.log("speakText: Creating new SpeechSynthesisUtterance.");
+            currentUtterance = new SpeechSynthesisUtterance(textToSpeak); 
+            currentUtterance.lang = 'en-US'; 
+
             currentUtterance.onstart = () => {
-                console.log("TTS onstart.");
+                console.log("TTS onstart: Utterance has started speaking.");
                 isReading = true;
                 isPaused = false;
                 updateTTSButtonStates();
             };
+
             currentUtterance.onend = () => {
-                console.log("TTS onend.");
+                console.log("TTS onend: Utterance has finished speaking.");
                 isReading = false;
                 isPaused = false;
-                currentUtterance = null;
+                // currentUtterance = null; // Not strictly necessary as it's reassigned
                 updateTTSButtonStates();
             };
+
             currentUtterance.onerror = (event) => {
-                console.error('TTS onerror:', event);
+                console.error('TTS onerror:', event.error, event); 
                 isReading = false;
                 isPaused = false;
-                ttsStatusP.textContent = `Speech error: ${event.error}. Try again or check browser console.`;
-                currentUtterance = null;
+                ttsStatusP.textContent = `Speech error: ${event.error}. Try again or check console.`;
+                // currentUtterance = null;
                 updateTTSButtonStates();
             };
             
-            console.log("Calling speechSynthesis.speak() with utterance.");
-            speechSynthesis.speak(currentUtterance);
-            isReading = true; 
-            isPaused = false;
-            updateTTSButtonStates(); 
-        }, 100); // Increased delay slightly to 100ms
+            console.log("speakText: Attempting to speak with utterance object:", currentUtterance);
+            if (currentUtterance instanceof SpeechSynthesisUtterance) {
+                speechSynthesis.speak(currentUtterance); 
+                isReading = true; 
+                isPaused = false;
+                updateTTSButtonStates(); 
+            } else {
+                console.error("speakText: currentUtterance is NOT a SpeechSynthesisUtterance object just before speak()!", currentUtterance);
+                ttsStatusP.textContent = "Internal error: Could not prepare speech.";
+                isReading = false;
+                isPaused = false;
+                updateTTSButtonStates();
+            }
+        }, 100); 
     }
 
     function stopReading() {
         if (speechSynthesis) {
             console.log("stopReading called.");
-            speechSynthesis.cancel(); // This should trigger onend
+            speechSynthesis.cancel(); 
             isReading = false;
             isPaused = false;
             currentUtterance = null; 
@@ -427,15 +443,14 @@ setTimeout(() => {
             console.log("pauseReading called.");
             speechSynthesis.pause();
             isPaused = true;
-            // isReading remains true
             updateTTSButtonStates();
         }
     }
     function resumeReading() {
-        if (speechSynthesis && isPaused) { // Check internal isPaused flag
+        if (speechSynthesis && isPaused) { 
             console.log("resumeReading called.");
             speechSynthesis.resume();
-            isPaused = false; // Should become false once resumed
+            isPaused = false; 
             updateTTSButtonStates();
         }
     }
