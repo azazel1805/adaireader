@@ -60,6 +60,11 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.log("SpeechSynthesis API is available.");
         speechSynthesis.cancel(); 
+setTimeout(() => {
+    // ...
+    speechSynthesis.speak(currentUtterance);
+    // ...
+}, 100); // You can experiment with this value: 50, 100, 150, 200 
         updateTTSButtonStates();
     }
 
