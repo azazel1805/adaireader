@@ -181,9 +181,7 @@ def get_definition():
     try:
         print("/get_definition: Initializing Gemini Model 'gemini-1.5-flash-latest'")
         model = genai.GenerativeModel('gemini-1.5-flash-latest') # Ensure model name is correct
-        prompt = f"""For the text provided below, give me two things:
-1.  **English Definition:** Concisely define the text as if for a vocabulary pop-up. If it's a phrase, explain its meaning. If it's a name, identify it.
-2.  **Turkish Meaning:** Provide the most common Turkish translation or explanation: \"{text_to_define}\""
+        prompt = f"Concisely define the following text as if for a vocabulary pop-up. If it's a phrase, explain its meaning. If it's a single word, define it. If it's a name, identify it: \"{text_to_define}\""
         print(f"/get_definition: Sending prompt to Gemini: \"{prompt}\"")
         
         generation_config = genai.types.GenerationConfig(
@@ -227,5 +225,4 @@ if __name__ == '__main__':
     print("Starting Flask development server...")
     # For local development, use_reloader=False can sometimes make debugging simpler if it auto-restarts too much
     # For Render, Gunicorn will handle how the app is run.
-
     app.run(debug=True, use_reloader=False) 
