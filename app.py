@@ -179,50 +179,83 @@ def get_definition():
         return jsonify({"error": "No text provided for definition"}), 400
 
     try:
-        print("/get_definition: Initializing Gemini Model 'gemini-1.5-flash-latest'")
-        model = genai.GenerativeModel('gemini-1.5-flash-latest') # Ensure model name is correct
-        prompt = f"Concisely define the following text as if for a vocabulary pop-up. If it's a phrase, explain its meaning. If it's a single word, define it. If it's a name, identify it: \"{text_to_define}\""
-        print(f"/get_definition: Sending prompt to Gemini: \"{prompt}\"")
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
         
-        generation_config = genai.types.GenerationConfig(
-            temperature=0.2,
-            max_output_tokens=150
-        )
+        # --- NEW PROMPT ---
+        # This prompt explicitly asks for a JSON response, which is much more reliable.
+        prompt = f"""
+        Analyze the following English text: "{text_to_define}"
 
-        response = model.generate_content(prompt, generation_config=generation_config)
+        Provide a vocabulary analysis. Respond ONLY with a valid JSON object.
+        Do not add any explanation or markdown formatting like ```json.
+        The JSON object must have the following keys: "definition", "synonyms", "antonyms", "turkish_meaning".
+
+        - "definition": A concise definition of the text.
+        - "synonyms": A list of up to 5 relevant synonyms.
+        - "antonyms": A list of up to 5 relevant antonyms.
+        - "turkish_meaning": The closest single word or short phrase Turkish equivalent.
+
+        If a field is not applicable or cannot be found (e.g., no antonyms for a proper noun),
+        return an empty list [] for "synonyms" and "antonyms", or an empty string "" for other fields.
+
+        Example for the word "happy":
+        {{
+          "definition": "Feeling or showing pleasure or contentment.",
+          "synonyms": ["content", "joyful", "cheerful", "pleased", "gleeful"],
+          "antonyms": ["sad", "unhappy", "miserable", "depressed"],
+          "turkish_meaning": "mutlu"
+        }}
+        """
         
-        definition_text = "Error: No definition could be generated." # Default error
+        print(f"/get_definition: Sending JSON-focused prompt to Gemini for '{text_to_define}'")
         
-        # Try to access the text attribute first, common for simpler responses
+        response = model.generate_content(prompt)
+        
+        # --- NEW PARSING LOGIC ---
+        # Get the raw text from Gemini's response
+        raw_response_text = ""
         if hasattr(response, 'text') and response.text:
-            definition_text = response.text.strip()
-            print(f"/get_definition: Gemini response.text: '{definition_text}'")
-        # If .text isn't there or is empty, check for parts (common for more complex/streamed responses)
+            raw_response_text = response.text.strip()
         elif hasattr(response, 'parts') and response.parts:
-            definition_text = "".join(part.text for part in response.parts if hasattr(part, 'text')).strip()
-            print(f"/get_definition: Gemini response.parts joined: '{definition_text}'")
-        # Fallback for candidate structure if the above aren't present
-        elif hasattr(response, 'candidates') and response.candidates and \
-             hasattr(response.candidates[0], 'content') and hasattr(response.candidates[0].content, 'parts') and \
-             response.candidates[0].content.parts:
-             definition_text = "".join(part.text for part in response.candidates[0].content.parts if hasattr(part, 'text')).strip()
-             print(f"/get_definition: Gemini response.candidates[0].content.parts joined: '{definition_text}'")
-        else:
-            print(f"/get_definition: Unexpected Gemini response structure or empty response: {response}")
+            raw_response_text = "".join(part.text for part in response.parts if hasattr(part, 'text')).strip()
+        
+        print(f"/get_definition: Raw response from Gemini:\n{raw_response_text}")
 
+        # Try to parse the raw text as JSON
+        try:
+            # Clean up potential markdown formatting that the AI might add despite instructions
+            cleaned_json_string = re.sub(r'^```json\s*|\s*```$', '', raw_response_text, flags=re.MULTILINE)
+            result_data = json.loads(cleaned_json_string)
 
-        print(f"/get_definition: Returning definition: '{definition_text}' for selected text: '{text_to_define}'")
-        return jsonify({"selected_text": text_to_define, "definition": definition_text})
+            # Ensure all keys are present, providing default values if not
+            final_json = {
+                "selected_text": text_to_define,
+                "definition": result_data.get("definition", "N/A"),
+                "synonyms": result_data.get("synonyms", []),
+                "antonyms": result_data.get("antonyms", []),
+                "turkish_meaning": result_data.get("turkish_meaning", "N/A")
+            }
+            print(f"/get_definition: Successfully parsed JSON. Sending structured data to frontend.")
+            return jsonify(final_json)
+
+        except (json.JSONDecodeError, AttributeError) as e:
+            print(f"Warning: Could not parse Gemini response as JSON for '{text_to_define}'. Error: {e}. Sending raw text as fallback definition.")
+            # Fallback: if JSON parsing fails, just send the whole raw text as the definition.
+            return jsonify({
+                "selected_text": text_to_define,
+                "definition": raw_response_text if raw_response_text else "Could not generate a definition.",
+                "synonyms": [],
+                "antonyms": [],
+                "turkish_meaning": ""
+            })
 
     except Exception as e:
         print(f"CRITICAL ERROR in /get_definition with Gemini API: {e}")
-        # For more detailed Gemini errors, you might need to inspect specific attributes of 'e'
-        # import traceback
-        # traceback.print_exc() # This will print the full stack trace to your Flask console
-        return jsonify({"error": f"Gemini API error. Please check server logs. Detail: {str(e)}"}), 500
+        return jsonify({"error": f"An unexpected error occurred with the AI service. Details: {str(e)}"}), 500
 
 if __name__ == '__main__':
     print("Starting Flask development server...")
     # For local development, use_reloader=False can sometimes make debugging simpler if it auto-restarts too much
     # For Render, Gunicorn will handle how the app is run.
     app.run(debug=True, use_reloader=False) 
+
