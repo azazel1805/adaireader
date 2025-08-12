@@ -77,8 +77,26 @@
             </section>
 
             <div id="vocab-popup" class="tooltip">
-                <strong id="vocab-word"></strong>: <span id="vocab-definition"></span>
-            </div>
+    <strong id="vocab-word"></strong>
+    <dl class="vocab-details">
+        <div id="vocab-entry-definition" class="vocab-entry">
+            <dt>Definition</dt>
+            <dd id="vocab-definition"></dd>
+        </div>
+        <div id="vocab-entry-synonyms" class="vocab-entry">
+            <dt>Synonyms</dt>
+            <dd id="vocab-synonyms"></dd>
+        </div>
+        <div id="vocab-entry-antonyms" class="vocab-entry">
+            <dt>Antonyms</dt>
+            <dd id="vocab-antonyms"></dd>
+        </div>
+        <div id="vocab-entry-turkish" class="vocab-entry">
+            <dt>Turkish Meaning</dt>
+            <dd id="vocab-turkish"></dd>
+        </div>
+    </dl>
+</div>
             
             <div id="loading-indicator" style="display:none;">Loading...</div>
             <div id="error-message" style="display:none;"></div> <!-- Ensure this is visible when errors occur -->
@@ -114,3 +132,4 @@
 </body>
 
 </html>
+
