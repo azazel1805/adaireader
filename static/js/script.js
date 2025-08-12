@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log("DOM fully loaded and parsed. Version: Enhanced TTS Debugging & Voice Selection.");
 
-    // Element getters
+    // --- Element getters ---
     const bookSelect = document.getElementById('book-select');
     const bookIdInput = document.getElementById('book-id-input');
     const loadBookBtn = document.getElementById('load-book-btn');
@@ -23,33 +23,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const loadingIndicator = document.getElementById('loading-indicator');
     const errorMessageDiv = document.getElementById('error-message');
 
-    // Check for all essential elements (good practice)
-    // ... (keep your essentialElements check here)
+    // --- Essential Elements Check ---
+    const essentialElements = [
+        bookSelect, bookIdInput, loadBookBtn, bookContentDiv, addToMyWordsBtn,
+        readFromSelectionBtn, myWordsListUl, readBookBtn, pauseReadingBtn,
+        resumeReadingBtn, stopReadingBtn, ttsStatusP, vocabPopup, vocabWordEl,
+        vocabDefinitionEl, loadingIndicator, errorMessageDiv
+    ];
 
+    if (essentialElements.some(el => el === null)) {
+        console.error("One or more essential DOM elements are missing. Please check your HTML structure.");
+        // Disable functionality if critical elements are missing
+        document.body.innerHTML = '<h1>Error: Page elements missing. Please check console.</h1>';
+        return; 
+    }
+
+    // --- Global State Variables ---
     let currentBookText = "";
     let isReading = false; 
     let isPaused = false;
     let speechSynthesis = window.speechSynthesis;
-    let currentUtterance = null; 
+    let currentUtterance = null; // The currently speaking utterance object
+    let utteranceQueue = []; // Array of text chunks to be spoken
+    let currentChunkIndex = 0; // Index of the current chunk in the queue
     let myWords = []; 
     let availableVoices = []; // To store loaded voices
 
     // Chrome TTS Workaround: "Warm up" the engine
+    // This helps prevent the first speech from being silent in some browsers (like Chrome)
     let ttsEnginePrimed = false;
     function primeTTSEngine() {
         if (!ttsEnginePrimed && speechSynthesis && availableVoices.length > 0) { 
             console.log("Priming TTS Engine for Chrome with a short, silent utterance...");
             const primer = new SpeechSynthesisUtterance('Hello'); 
-            primer.volume = 0.01; 
-            primer.rate = 5; 
+            primer.volume = 0.01; // Almost silent
+            primer.rate = 5; // Very fast
             
-            const englishVoice = availableVoices.find(voice => voice.lang === 'en-US' && voice.localService === true) ||
-                                 availableVoices.find(voice => voice.lang === 'en-US');
+            const englishVoice = availableVoices.find(voice => voice.lang.startsWith('en-') && voice.localService === true) ||
+                                 availableVoices.find(voice => voice.lang.startsWith('en-'));
             if (englishVoice) {
                 primer.voice = englishVoice;
                 console.log("Primer using voice:", englishVoice.name);
             } else {
-                console.warn("Primer: No en-US voice found for priming.");
+                console.warn("Primer: No English voice found for priming. Using default.");
             }
 
             primer.onend = () => {
@@ -58,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             primer.onerror = (event) => {
                 console.error("TTS Primer utterance error:", event.error, event);
-                // Consider not setting ttsEnginePrimed to true if primer fails critically
+                // The primer failed, but we might still proceed, just log the error.
             };
             try {
                 speechSynthesis.speak(primer);
@@ -71,11 +87,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // Function to load and log available TTS voices
     function loadAndLogVoices() {
         if (!speechSynthesis) return;
         availableVoices = speechSynthesis.getVoices();
         console.log("Available TTS voices (sync call):", availableVoices);
 
+        // If no voices initially, set up onvoiceschanged listener
         if (availableVoices.length === 0 && speechSynthesis.onvoiceschanged === null) {
             console.log("No voices loaded yet (sync), setting up onvoiceschanged event...");
             speechSynthesis.onvoiceschanged = () => {
@@ -84,9 +102,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (availableVoices.length === 0) {
                     console.warn("Still no TTS voices available after onvoiceschanged!");
                 }
-                // Once voices are loaded, we don't need this listener anymore for this session
-                // However, some browsers might fire it multiple times.
-                // For simplicity, we'll let it be.
+                // Once voices are loaded, you might want to call primeTTSEngine here
+                // if it hasn't been primed yet and you're ready to prime.
+                primeTTSEngine();
             };
         } else if (availableVoices.length === 0) {
              console.warn("No TTS voices available initially. The onvoiceschanged event might be necessary or already set.");
@@ -100,7 +118,7 @@ document.addEventListener('DOMContentLoaded', () => {
         [readBookBtn, pauseReadingBtn, resumeReadingBtn, stopReadingBtn, readFromSelectionBtn].forEach(btn => btn.disabled = true);
     } else {
         console.log("SpeechSynthesis API is available.");
-        speechSynthesis.cancel(); 
+        speechSynthesis.cancel(); // Clear any lingering speech from previous sessions
         loadAndLogVoices(); // Attempt to load voices on initialization
         updateTTSButtonStates();
     }
@@ -245,10 +263,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoading(true);
         bookContentDiv.innerHTML = '<p>Loading book...</p>';
         currentBookText = "";
-        stopReading(); 
-        if (speechSynthesis && (speechSynthesis.speaking || speechSynthesis.pending)) {
-            speechSynthesis.cancel();
-        }
+        stopReading(); // Stop any ongoing speech
         try {
             const response = await fetch(`/fetch_book/${bookId}`);
             if (!response.ok) { 
@@ -350,10 +365,10 @@ document.addEventListener('DOMContentLoaded', () => {
     readBookBtn.addEventListener('click', () => {
         primeTTSEngine(); 
         if (currentBookText) {
-            console.log("Read Book button clicked.");
-            // TEST LINE:
-            // speakText("Hello, this is a simple test from Google Chrome."); 
-            speakText(currentBookText);
+            console.log("Read Book button clicked. Starting from beginning.");
+            speakText(currentBookText); // Now this calls the chunking version
+        } else {
+            displayError("No book loaded to read.");
         }
     });
 
@@ -362,22 +377,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const selection = window.getSelection();
         const selectedText = selection.toString().trim();
         if (selectedText && currentBookText) { 
+            // Get the full text from the start of the selection to the end of the book
+            // This is still good as we will chunk this `textToReadFromPoint`
             if (selection.rangeCount > 0) {
                 const range = selection.getRangeAt(0);
                 let startIndex = 0;
+                // Try to get the index relative to the bookContentDiv's text content
                 if (bookContentDiv.firstChild && bookContentDiv.firstChild.nodeType === Node.TEXT_NODE) {
                     const preSelectionRange = document.createRange();
                     preSelectionRange.setStart(bookContentDiv.firstChild, 0);
                     preSelectionRange.setEnd(range.startContainer, range.startOffset);
                     startIndex = preSelectionRange.toString().length;
                 } else {
+                    // Fallback: find first occurrence if direct node access fails
                     startIndex = currentBookText.indexOf(selectedText); 
                     if (startIndex === -1) { 
-                        displayError("Could not determine starting point of selection.");
-                        return; 
+                        displayError("Could not determine starting point of selection accurately. Reading selected text only.");
+                        speakText(selectedText); // Read only selected text if context can't be found
+                        return;
                     }
                 }
                 const textToReadFromPoint = currentBookText.substring(startIndex);
+                console.log("Reading from selection. Text (first 100 chars):", textToReadFromPoint.substring(0,100));
                 speakText(textToReadFromPoint);
             } else { displayError("Could not get selection range."); }
         } else if (!currentBookText) { displayError("No book loaded."); } 
@@ -390,23 +411,93 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- Speech Synthesis Functions ---
-    function updateTTSButtonStates() {
-        if (!speechSynthesis) return;
-        const bookLoaded = currentBookText && currentBookText.length > 0;
 
-        readBookBtn.disabled = !bookLoaded || (isReading && !isPaused); 
-        pauseReadingBtn.disabled = !isReading || isPaused;
-        resumeReadingBtn.disabled = !isReading || !isPaused; 
-        stopReadingBtn.disabled = !isReading && !isPaused; 
-        
-        if (isReading && !isPaused) ttsStatusP.textContent = "Reading...";
-        else if (isPaused) ttsStatusP.textContent = "Paused.";
-        else if (bookLoaded) ttsStatusP.textContent = "Ready to read.";
-        else ttsStatusP.textContent = "Load a book to enable reading controls.";
+    // Function to split text into chunks suitable for TTS
+    function splitTextIntoChunks(text, maxChunkLength = 250) {
+        const chunks = [];
+        // Attempt to split by common paragraph/sentence delimiters first
+        const paragraphs = text.split(/[\r\n]{2,}/).filter(p => p.trim().length > 0); // Split by double newlines
+
+        for (const para of paragraphs) {
+            let currentParaChunk = '';
+            // Further split paragraphs into sentences or smaller parts if too long
+            const sentences = para.match(/[^.!?]+[.!?]*/g) || [para]; // Split by sentence endings
+
+            for (const sentence of sentences) {
+                if ((currentParaChunk + sentence).length <= maxChunkLength) {
+                    currentParaChunk += sentence;
+                } else {
+                    if (currentParaChunk.trim().length > 0) {
+                        chunks.push(currentParaChunk.trim());
+                    }
+                    currentParaChunk = sentence; // Start new chunk with current sentence
+                }
+            }
+            if (currentParaChunk.trim().length > 0) {
+                chunks.push(currentParaChunk.trim());
+            }
+        }
+        return chunks;
     }
 
+    // Function to speak the next chunk in the queue
+    function speakNextChunk() {
+        if (!isReading || isPaused) {
+            // If reading is stopped or paused, don't proceed
+            console.log("speakNextChunk: Not reading or paused. Stopping iteration.");
+            return;
+        }
+
+        if (currentChunkIndex < utteranceQueue.length) {
+            const chunk = utteranceQueue[currentChunkIndex];
+            console.log(`Speaking chunk ${currentChunkIndex + 1}/${utteranceQueue.length}: "${chunk.substring(0, 50)}..."`);
+            currentUtterance = new SpeechSynthesisUtterance(chunk);
+            currentUtterance.lang = 'en-US'; 
+
+            if (availableVoices.length > 0) {
+                let englishVoice = availableVoices.find(voice => voice.lang.startsWith('en-') && voice.localService === true);
+                if (!englishVoice) {
+                    englishVoice = availableVoices.find(voice => voice.lang.startsWith('en-'));
+                }
+                if (englishVoice) {
+                    currentUtterance.voice = englishVoice;
+                    // console.log("Using voice for chunk:", englishVoice.name);
+                } else {
+                    console.warn("No English voice found for chunk. Using default.");
+                }
+            } else {
+                console.warn("No voices available when creating utterance for chunk. Using default.");
+            }
+
+            currentUtterance.onend = () => {
+                console.log("Chunk ended. Moving to next.");
+                currentChunkIndex++;
+                speakNextChunk(); // Recursively call to speak the next chunk
+            };
+
+            currentUtterance.onerror = (event) => {
+                console.error(`TTS onerror for chunk ${currentChunkIndex}:`, event.error, event); 
+                displayError(`Speech error on chunk: ${event.error}. Stopping reading.`);
+                stopReading(); // Stop reading if an error occurs
+            };
+            
+            try {
+                speechSynthesis.speak(currentUtterance); 
+            } catch (e) {
+                console.error("Error directly from speechSynthesis.speak() for chunk:", e);
+                displayError(`Speech system error on chunk: ${e.message}.`);
+                stopReading();
+            }
+        } else {
+            console.log("All chunks spoken. Reading finished.");
+            stopReading(); // All chunks have been spoken
+        }
+    }
+
+
+    // OVERHAULED speakText function for chunking
     function speakText(textToSpeak) {
-        console.log("speakText called. Text (first 100 chars): '", textToSpeak ? textToSpeak.substring(0,100) : "NULL", "'");
+        console.log("speakText called (chunking version).");
         
         if (!speechSynthesis) { 
             ttsStatusP.textContent = "TTS not available."; 
@@ -419,82 +510,21 @@ document.addEventListener('DOMContentLoaded', () => {
             return; 
         }
         
-        console.log("speakText: Cancelling previous speech (if any).");
-        speechSynthesis.cancel(); 
+        stopReading(); // Ensure any previous reading is stopped and cleared
+        utteranceQueue = splitTextIntoChunks(textToSpeak);
+        currentChunkIndex = 0;
 
-        setTimeout(() => {
-            if (speechSynthesis.pending || speechSynthesis.speaking) {
-                 console.warn("TTS still active after initial cancel, trying cancel again before new speak.");
-                 speechSynthesis.cancel(); 
-            }
+        if (utteranceQueue.length === 0) {
+            displayError("No readable content after processing (text might be too short or couldn't be chunked).");
+            return;
+        }
 
-            console.log("speakText: Creating new SpeechSynthesisUtterance.");
-            currentUtterance = new SpeechSynthesisUtterance(textToSpeak); 
-            currentUtterance.lang = 'en-US'; 
-
-            // Attempt to assign a specific voice
-            if (availableVoices.length > 0) {
-                let englishVoice = availableVoices.find(voice => voice.lang === 'en-US' && voice.localService === true); // Prefer local
-                if (!englishVoice) {
-                    englishVoice = availableVoices.find(voice => voice.lang === 'en-US'); // Fallback to any English
-                }
-                if (englishVoice) {
-                    currentUtterance.voice = englishVoice;
-                    console.log("speakText: Using voice:", englishVoice.name, englishVoice.lang);
-                } else {
-                    console.warn("speakText: No 'en-US' voice found. Using default.");
-                }
-            } else {
-                console.warn("speakText: No voices available when creating utterance. Using default. Attempting to reload voices.");
-                loadAndLogVoices(); // Try to load voices again if they weren't ready
-            }
-
-            currentUtterance.onstart = () => {
-                console.log("TTS onstart: Utterance has started speaking.");
-                isReading = true;
-                isPaused = false;
-                updateTTSButtonStates();
-            };
-
-            currentUtterance.onend = () => {
-                console.log("TTS onend: Utterance has finished speaking.");
-                isReading = false;
-                isPaused = false;
-                // currentUtterance = null; 
-                updateTTSButtonStates();
-            };
-
-            currentUtterance.onerror = (event) => {
-                console.error('TTS onerror - Error type:', event.error, 'Full event object:', event); 
-                isReading = false;
-                isPaused = false;
-                ttsStatusP.textContent = `Speech error: ${event.error}. See console for details.`;
-                // currentUtterance = null;
-                updateTTSButtonStates();
-            };
-            
-            console.log("speakText: Attempting to speak with utterance object:", currentUtterance);
-            if (currentUtterance instanceof SpeechSynthesisUtterance) {
-                try {
-                    speechSynthesis.speak(currentUtterance); 
-                    isReading = true; 
-                    isPaused = false;
-                    updateTTSButtonStates(); 
-                } catch (e) {
-                    console.error("Error directly from speechSynthesis.speak():", e);
-                    ttsStatusP.textContent = `Speech system error: ${e.message}.`;
-                    isReading = false;
-                    isPaused = false;
-                    updateTTSButtonStates();
-                }
-            } else {
-                console.error("speakText: currentUtterance is NOT a SpeechSynthesisUtterance object just before speak()!", currentUtterance);
-                ttsStatusP.textContent = "Internal error: Could not prepare speech.";
-                isReading = false;
-                isPaused = false;
-                updateTTSButtonStates();
-            }
-        }, 100); // 100ms delay
+        isReading = true;
+        isPaused = false;
+        updateTTSButtonStates();
+        
+        // Start speaking the first chunk
+        speakNextChunk();
     }
 
     function stopReading() {
@@ -504,6 +534,8 @@ document.addEventListener('DOMContentLoaded', () => {
             isReading = false;
             isPaused = false;
             currentUtterance = null; 
+            utteranceQueue = []; // Clear the queue
+            currentChunkIndex = 0; // Reset index
             updateTTSButtonStates();
         }
     }
@@ -516,19 +548,51 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     function resumeReading() {
-        if (speechSynthesis && isPaused) { // Check our internal isPaused flag
+        if (speechSynthesis && isPaused) { 
             console.log("resumeReading called.");
             speechSynthesis.resume();
             isPaused = false; 
             updateTTSButtonStates();
+            // If resume was called and we're mid-chunk, `speakNextChunk` won't be called automatically.
+            // The `resume()` method should pick up where it left off on the *current* utterance.
+            // If it stopped *between* chunks, `speakNextChunk` might need to be re-triggered.
+            // However, `speechSynthesis.pause()` pauses the *entire* queue.
+            // So, `resume()` should just continue the current utterance, then `onend` fires for the next.
         }
     }
+
+    // Function to update button states based on TTS status
+    function updateTTSButtonStates() {
+        if (!speechSynthesis) {
+            // TTS not supported, disable all TTS buttons
+            [readBookBtn, pauseReadingBtn, resumeReadingBtn, stopReadingBtn, readFromSelectionBtn].forEach(btn => btn.disabled = true);
+            ttsStatusP.textContent = "TTS not supported.";
+            return;
+        }
+
+        const bookLoaded = currentBookText && currentBookText.length > 0;
+
+        readBookBtn.disabled = !bookLoaded || isReading; // Disable if no book or already reading
+        pauseReadingBtn.disabled = !isReading || isPaused; // Disable if not reading or already paused
+        resumeReadingBtn.disabled = !isReading || !isPaused; // Disable if not reading or not paused
+        stopReadingBtn.disabled = !isReading && !isPaused; // Disable if not reading and not paused (i.e., nothing to stop)
+        readFromSelectionBtn.disabled = !window.getSelection().toString().trim() || isReading; // Disable if no selection or already reading
+
+        if (isReading && !isPaused) {
+            ttsStatusP.textContent = "Reading...";
+        } else if (isPaused) {
+            ttsStatusP.textContent = "Paused.";
+        } else if (bookLoaded) {
+            ttsStatusP.textContent = "Ready to read.";
+        } else {
+            ttsStatusP.textContent = "Load a book to enable reading controls.";
+        }
+    }
+
 
     // Initializations
     populateBookSelect();
     loadMyWords();
-    updateTTSButtonStates();
-    readFromSelectionBtn.disabled = true; 
-    addToMyWordsBtn.disabled = true;
+    updateTTSButtonStates(); // Set initial button states
     console.log("Initial setup complete. TTS debugging enhanced.");
 });
