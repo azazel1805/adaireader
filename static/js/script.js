@@ -20,6 +20,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const vocabPopup = document.getElementById('vocab-popup');
     const vocabWordEl = document.getElementById('vocab-word');
     const vocabDefinitionEl = document.getElementById('vocab-definition');
+    const vocabSynonymsEl = document.getElementById('vocab-synonyms');
+const vocabAntonymsEl = document.getElementById('vocab-antonyms');
+const vocabTurkishEl = document.getElementById('vocab-turkish');
+const vocabEntryDefinition = document.getElementById('vocab-entry-definition');
+const vocabEntrySynonyms = document.getElementById('vocab-entry-synonyms');
+const vocabEntryAntonyms = document.getElementById('vocab-entry-antonyms');
+const vocabEntryTurkish = document.getElementById('vocab-entry-turkish');
     const loadingIndicator = document.getElementById('loading-indicator');
     const errorMessageDiv = document.getElementById('error-message');
 
@@ -28,7 +35,8 @@ document.addEventListener('DOMContentLoaded', () => {
         bookSelect, bookIdInput, loadBookBtn, bookContentDiv, addToMyWordsBtn,
         readFromSelectionBtn, myWordsListUl, readBookBtn, pauseReadingBtn,
         resumeReadingBtn, stopReadingBtn, ttsStatusP, vocabPopup, vocabWordEl,
-        vocabDefinitionEl, loadingIndicator, errorMessageDiv
+        vocabDefinitionEl, loadingIndicator, errorMessageDiv, vocabDefinitionEl, vocabSynonymsEl, vocabAntonymsEl, vocabTurkishEl,
+    vocabEntryDefinition, vocabEntrySynonyms, vocabEntryAntonyms, vocabEntryTurkish
     ];
 
     if (essentialElements.some(el => el === null)) {
@@ -596,3 +604,4 @@ document.addEventListener('DOMContentLoaded', () => {
     updateTTSButtonStates(); // Set initial button states
     console.log("Initial setup complete. TTS debugging enhanced.");
 });
+
