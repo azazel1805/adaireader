@@ -395,3 +395,61 @@ button:disabled {
     }
 
 }
+
+@media (max-width: 768px) {
+    .container {
+        /* Change the layout from a side-by-side grid to a single column */
+        display: flex;
+        flex-direction: column;
+    }
+
+    .main-content-area {
+        /* Make the main content area take up the full width */
+        width: 100%;
+        order: 1; /* Keep main content on top */
+    }
+
+    .sidebar {
+        /* Make the sidebar take up the full width */
+        width: 100%;
+        order: 2; /* Move sidebar below the main content */
+        margin-top: 2rem; /* Add some space between main content and the word list */
+        max-height: 400px; /* Give the word list a max height to avoid a very long scroll */
+    }
+
+    .controls-section, .reading-tools-section {
+        /* Stack controls on mobile for easier tapping */
+        padding: 0.8rem;
+    }
+
+    .button-group {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: stretch; /* Make buttons in a group take full width */
+    }
+
+    .button-group button {
+        width: 100%;
+        text-align: center;
+        padding: 12px; /* Make buttons taller for easier tapping */
+    }
+
+    .book-selection {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+    
+    .book-selection span {
+        display: none; /* Hide the "OR" text on mobile to save space */
+    }
+
+    #book-content {
+        font-size: 16px; /* Ensure a readable base font size on mobile */
+    }
+
+    h1 {
+        font-size: 1.8rem; /* Slightly smaller title for mobile screens */
+    }
+}
+
